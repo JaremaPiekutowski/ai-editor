@@ -96,8 +96,12 @@ class Proofreader:
         Jesteś doświadczonym korektorem.
         Przeczytaj poniższy tekst i dokonaj korekty błędów interpunkcyjnych, ortograficznych,
         gramatycznych i składniowych.
-        Fragment tekstu do analizy:"""{chunk}"""
-        W odpowiedzi podaj tylko sam poprawiony tekst.
+        Nadaj mu też tytuł.
+        Tytuł nie może być dłuższy niż 4 słowa.
+        Tekst do analizy:"""{chunk}"""
+        FORMAT ODPOWIEDZI:
+        <stworzony tytuł>\n
+        <poprawiony tekst>\n
         '''
         print("Beginning proofreading for chunk beginning with:", chunk[:10])
 
@@ -146,9 +150,8 @@ class Proofreader:
 
         prompt = f'''
         Jesteś doświadczonym redaktorem.
-        Przeczytaj poniższy tekst i wybierz z niego 3 cytaty,
-        które mogą być najbardziej interesujące dla czytelników.
-        Jeden cytat nie może przekraczać 200 znaków.
+        Przeczytaj poniższy tekst i wybierz z niego 3 cytaty, które mogą być najbardziej interesujące dla czytelników.
+        Ważne: Długość cytatu NIE MOŻE przekraczać 200 znaków!!!
         Tekst do analizy:"""{chunk}"""
         W odpowiedzi wypisz tylko same wybrane cytaty.
         FORMAT ODPOWIEDZI:
@@ -169,9 +172,8 @@ class Proofreader:
         summary = self.summary[:5000]
         prompt = f'''
         Jesteś doświadczonym redaktorem.
-        Przeczytaj poniższe streszczenie i napisz trzy propozycje
-        interesującego i przyciągającego uwagę tytułu.
-        Długość jednego tytułu nie może przekraczać 150 znaków.
+        Przeczytaj poniższe streszczenie i napisz trzy propozycje interesującego i przyciągającego uwagę tytułu.
+        Ważne: Długość tytułu NIE MOŻE przekraczać 150 znaków!!!
         Streszczenie tekstu do analizy:"""{summary}"""
         FORMAT ODPOWIEDZI:
         <pierwszy tytuł>\n
@@ -191,9 +193,8 @@ class Proofreader:
         print("Beginning creating leads for text beginning with:", summary[:10])
         prompt = f'''
         Jesteś doświadczonym redaktorem.
-        Przeczytaj poniższe streszczenie i napisz trzy propozycje
-        interesującego i przyciągającego uwagę leadu.
-        Długość jednego leadu nie może przekraczać 200 znaków.
+        Przeczytaj poniższe streszczenie i napisz trzy propozycje interesującego i przyciągającego uwagę leadu.
+        Ważne: Długość leadu NIE MOŻE przekraczać 200 znaków!!!
         Streszczenie tekstu do analizy:"""{summary}"""
         W odpowiedzi wypisz tylko same wybrane leady.
         FORMAT ODPOWIEDZI:
@@ -258,7 +259,8 @@ class Proofreader:
         time_start = time.time()
         for chunk in self.document_chunks:
             print("Processing chunk beginning with:", chunk[:10])
-            self.output_text += self.proofread(chunk)
+            chunk = "\n\n" + self.proofread(chunk)
+            self.output_text += chunk
             print("Time elapsed:", time.time() - time_start)
             self.summary += self.summarize(chunk)
             print("Time elapsed:", time.time() - time_start)
@@ -306,20 +308,20 @@ class DocumentWriter:
         # Add quotes section
         self.document.add_heading('CYTATY', level=1)
         for quote in output["quotes"]:
-            lead = lead.replace('"', '')
+            quote = quote.replace('"', '')
             self.document.add_paragraph(quote)
 
         # Add tags section
         self.document.add_heading('TAGI Z LISTY', level=1)
         # TODO: Temporary cleaning data solution
         list_tags = (", ".join(output["tags_from_list"]).replace(',, ', ', '))
-        list_tags = (", ".join(output["tags_from_list"]).replace(', , ', ', '))
-        self.document.add_paragraph("Tagi: ", list_tags)
+        list_tags = "Tagi: " + list_tags.replace(', , ', ', ')
+        self.document.add_paragraph(list_tags)
 
         self.document.add_heading('TAGI', level=1)
         tags = (", ".join(output["tags"]).replace(',, ', ', '))
-        tags = (", ".join(output["tags"]).replace(', , ', ', '))
-        self.document.add_paragraph("#", tags)
+        tags = "# " + tags.replace(', , ', ', ')
+        self.document.add_paragraph(tags)
 
         # Add text section
         self.document.add_heading('POPRAWIONY TEKST', level=1)

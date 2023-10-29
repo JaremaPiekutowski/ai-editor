@@ -7,6 +7,11 @@ from docx import Document
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
+TAG_LIST = [
+    "Relacje międzynarodowe", "Gospodarka", "Społeczeństwo", "Historia",
+    "Kultura", "Kościół", "Idee"
+    ]
+
 
 class DocumentReader:
     def __init__(self, file_path: str) -> None:
@@ -30,10 +35,21 @@ class DocumentProcessor:
         self.document = document
 
     def chunk_document(self, chunk_size: int) -> list:
-        return [
-            self.document[i:i + chunk_size]
-            for i in range(0, len(self.document), chunk_size)
-        ]
+        chunks = []
+        start_idx = 0
+        while start_idx < len(self.document):
+            end_idx = start_idx + chunk_size
+            # If this isn't the last chunk
+            if end_idx < len(self.document):
+                # Find the last occurrence of a full stop before the end of the chunk
+                last_dot_idx = self.document.rfind('.', start_idx, end_idx)
+                # If a full stop is found, adjust the end index; otherwise, keep the end index as it is
+                end_idx = last_dot_idx + 1 if last_dot_idx != -1 else end_idx
+            # Append the chunk to the list
+            chunks.append(self.document[start_idx:end_idx].strip())
+            # Update the start index for the next chunk
+            start_idx = end_idx
+        return chunks
 
 
 class Proofreader:
@@ -57,6 +73,8 @@ class Proofreader:
         self.output_text = ""
         self.quotes = []
         self.titles = []
+        self.tags_from_list = []
+        self.tags = []
 
     def get_openai_response(self, prompt: str) -> str:
         response = openai.Completion.create(
@@ -187,6 +205,53 @@ class Proofreader:
         response_text = self.get_openai_response(prompt=prompt)
         return response_text.split("\n")
 
+    def create_tags_from_list(self, tag_list: str) -> list:
+        """
+        Select tags from a tag list for a text based on summary.
+        """
+        # TODO: temporary solution. We have to deal with the summary length, but how?
+        summary = self.summary[:5000]
+        print("Beginning creating tags from list for text beginning with:", summary[:10])
+        prompt = f'''
+        Jesteś doświadczonym redaktorem.
+        Przeczytaj poniższe streszczenie i napisz do niego
+        maksymalnie trzy propozycje najbardziej pasujących tagów
+        wybranych z następującej listy: {tag_list}
+        Streszczenie tekstu do analizy:"""{summary}"""
+        W odpowiedzi wypisz tylko same wybrane tagi.
+        FORMAT ODPOWIEDZI:
+        <pierwszy tag>\n
+        <drugi tag>\n
+        <trzeci tag>\n
+        '''
+
+        response_text = self.get_openai_response(prompt=prompt)
+        return response_text.split("\n")
+
+    def create_tags(self, tag_list) -> list:
+        """
+        Creates tags for a text based on summary.
+        """
+        # TODO: temporary solution. We have to deal with the summary length, but how?
+        summary = self.summary[:5000]
+        print("Beginning creating tags for text beginning with:", summary[:10])
+        prompt = f'''
+        Jesteś doświadczonym redaktorem.
+        Przeczytaj poniższe streszczenie i napisz pięć propozycji tagów.
+        Wśród tagów nie może być tagi z listy: {tag_list}.
+        Streszczenie tekstu do analizy:"""{summary}"""
+        W odpowiedzi wypisz tylko same wybrane tagi.
+        FORMAT ODPOWIEDZI:
+        <pierwszy tag>\n
+        <drugi tag>\n
+        <trzeci tag>\n
+        <czwarty tag>\n
+        <piąty tag>\n
+        '''
+
+        response_text = self.get_openai_response(prompt=prompt)
+        return response_text.split("\n")
+
     def process_document(self) -> None:
         print("Beginning document processing.")
         # Start counting time of method execution
@@ -202,9 +267,13 @@ class Proofreader:
             print("Time elapsed:", time.time() - time_start)
         self.titles = self.create_titles()
         self.leads = self.create_leads()
+        self.tags_from_list = self.create_tags_from_list(TAG_LIST)
+        self.tags = self.create_tags(TAG_LIST)
         self.outputs = {
             "titles": self.titles,
             "leads": self.leads,
+            "tags_from_list": self.tags_from_list,
+            "tags": self.tags,
             "quotes": self.quotes,
             "output_text": self.output_text,
         }
@@ -225,17 +294,32 @@ class DocumentWriter:
         # Add titles section
         self.document.add_heading('TYTUŁY', level=1)
         for title in output["titles"]:
+            title = title.replace('"', '')
             self.document.add_paragraph(title)
 
         # Add leads section
         self.document.add_heading('LEADY', level=1)
         for lead in output["leads"]:
+            lead = lead.replace('"', '')
             self.document.add_paragraph(lead)
 
         # Add quotes section
         self.document.add_heading('CYTATY', level=1)
         for quote in output["quotes"]:
+            lead = lead.replace('"', '')
             self.document.add_paragraph(quote)
+
+        # Add tags section
+        self.document.add_heading('TAGI Z LISTY', level=1)
+        # TODO: Temporary cleaning data solution
+        list_tags = (", ".join(output["tags_from_list"]).replace(',, ', ', '))
+        list_tags = (", ".join(output["tags_from_list"]).replace(', , ', ', '))
+        self.document.add_paragraph("Tagi: ", list_tags)
+
+        self.document.add_heading('TAGI', level=1)
+        tags = (", ".join(output["tags"]).replace(',, ', ', '))
+        tags = (", ".join(output["tags"]).replace(', , ', ', '))
+        self.document.add_paragraph("#", tags)
 
         # Add text section
         self.document.add_heading('POPRAWIONY TEKST', level=1)

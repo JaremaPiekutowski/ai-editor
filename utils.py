@@ -194,6 +194,7 @@ class Proofreader:
         prompt = f'''
         Jesteś doświadczonym redaktorem.
         Przeczytaj poniższe streszczenie i napisz trzy propozycje interesującego i przyciągającego uwagę leadu.
+        Lead może np. zawierać mocne tezy z tekstu.
         Ważne: Długość leadu NIE MOŻE przekraczać 200 znaków!!!
         Streszczenie tekstu do analizy:"""{summary}"""
         W odpowiedzi wypisz tylko same wybrane leady.

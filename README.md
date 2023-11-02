@@ -19,13 +19,19 @@ pipenv install
 
 1. Put an article you want to edit in the folder "article". Ensure there are no other files in the folder.
 
-2. Run the app:
+2. From terminal activate the virtual environment
+
+```
+pipenv shell
+```
+
+3. Run the app:
 
 ```
 python main.py
 ```
 
-3. In the folder "Output" you will get a *`output.docx`* file with:
+4. In the folder "Output" you will get a *`output.docx`* file with:
 - three propositions of title,
 - three propositions of lead,
 - selected, interesting quotes (excerpts to be highlighted in the text)

@@ -14,9 +14,7 @@ if __name__ == "__main__":
     article_processor = DocumentProcessor(article)
     article_chunks = article_processor.chunk_document(CHUNK_SIZE)
     proofreader = Proofreader(
-        document_chunks=article_chunks,
-        engine="gpt-3.5-turbo-instruct",
-        temperature=0.5
-        )
+        document_chunks=article_chunks, engine="gpt-3.5-turbo-instruct", temperature=0.5
+    )
     proofreader.process_document()
     writer.write_document(proofreader.outputs)

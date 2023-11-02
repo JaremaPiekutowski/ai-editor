@@ -4,13 +4,21 @@ import time
 
 import openai
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 TAG_LIST = [
-    "Relacje międzynarodowe", "Gospodarka", "Społeczeństwo", "Historia",
-    "Kultura", "Kościół", "Idee"
-    ]
+    "Relacje międzynarodowe",
+    "Gospodarka",
+    "Społeczeństwo",
+    "Historia",
+    "Kultura",
+    "Kościół",
+    "Idee",
+]
 
 
 class DocumentReader:
@@ -42,7 +50,7 @@ class DocumentProcessor:
             # If this isn't the last chunk
             if end_idx < len(self.document):
                 # Find the last occurrence of a full stop before the end of the chunk
-                last_dot_idx = self.document.rfind('.', start_idx, end_idx)
+                last_dot_idx = self.document.rfind(".", start_idx, end_idx)
                 # If a full stop is found, adjust the end index; otherwise, keep the end index as it is
                 end_idx = last_dot_idx + 1 if last_dot_idx != -1 else end_idx
             # Append the chunk to the list
@@ -96,14 +104,27 @@ class Proofreader:
         Jesteś doświadczonym korektorem.
         Przeczytaj poniższy tekst i dokonaj korekty błędów interpunkcyjnych, ortograficznych,
         gramatycznych i składniowych.
-        Nadaj mu też tytuł.
-        Tytuł nie może być dłuższy niż 4 słowa.
         Tekst do analizy:"""{chunk}"""
-        FORMAT ODPOWIEDZI:
-        <stworzony tytuł>\n
-        <poprawiony tekst>\n
+        W odpowiedzi podaj tylko sam poprawiony tekst
         '''
         print("Beginning proofreading for chunk beginning with:", chunk[:10])
+
+        response_text = self.get_openai_response(prompt=prompt)
+        return response_text
+
+    def create_heading(self, chunk: str) -> dict:
+        # TODO: Create config dict with prompt templates
+        """
+        Creates heading a chunk of text.
+        """
+        prompt = f'''
+        Jesteś doświadczonym redaktorem.
+        Przeczytaj poniższy fragment tekstu i wymyśl do niego propozycję ciekawego nagłówka.
+        WAŻNE: długość nagłówka nie może przekraczać 4 słów.
+        Tekst do analizy:"""{chunk}"""
+        W odpowiedzi podaj tylko sam nagłówek.
+        '''
+        print("Beginning creating heading for chunk beginning with:", chunk[:10])
 
         response_text = self.get_openai_response(prompt=prompt)
         return response_text
@@ -112,7 +133,7 @@ class Proofreader:
         """
         Summarizes a chunk of text.
         """
-        chunk_summary_max_length = 10000/(len(self.document_chunks) + 1)
+        chunk_summary_max_length = 10000 / (len(self.document_chunks) + 1)
         prompt = f'''
         Jesteś doświadczonym redaktorem.
         Przeczytaj poniższy tekst i napisz jego streszczenie.
@@ -128,7 +149,9 @@ class Proofreader:
     def extract_data(self, text: str, type: str) -> tuple:
         # Define regex patterns
         # "type": C - quote, T - title
-        quote_pattern = re.compile(rf'{type}1:(.*?){type}2:(.*?){type}3:(.*)', re.DOTALL)
+        quote_pattern = re.compile(
+            rf"{type}1:(.*?){type}2:(.*?){type}3:(.*)", re.DOTALL
+        )
 
         # Search for the pattern in the response text
         quotes_match = quote_pattern.search(text)
@@ -139,7 +162,7 @@ class Proofreader:
             quote2 = quotes_match.group(2).strip()
             quote3 = quotes_match.group(3).strip()
         else:
-            quote1, quote2, quote3 = '', '', ''
+            quote1, quote2, quote3 = "", "", ""
         return quote1, quote2, quote3
 
     def get_quotes(self, chunk: str) -> str:
@@ -159,7 +182,7 @@ class Proofreader:
         <drugi cytat>\n
         <trzeci cytat>\n
         '''
-
+        # TODO: more creativity?
         response_text = self.get_openai_response(prompt=prompt)
         return response_text.split("\n")
 
@@ -180,7 +203,7 @@ class Proofreader:
         <drugi tytuł>\n
         <trzeci tytuł>\n
         '''
-
+        # TODO: more creativity?
         response_text = self.get_openai_response(prompt=prompt)
         return response_text.split("\n")
 
@@ -213,7 +236,9 @@ class Proofreader:
         """
         # TODO: temporary solution. We have to deal with the summary length, but how?
         summary = self.summary[:5000]
-        print("Beginning creating tags from list for text beginning with:", summary[:10])
+        print(
+            "Beginning creating tags from list for text beginning with:", summary[:10]
+        )
         prompt = f'''
         Jesteś doświadczonym redaktorem.
         Przeczytaj poniższe streszczenie i napisz do niego
@@ -254,13 +279,17 @@ class Proofreader:
         response_text = self.get_openai_response(prompt=prompt)
         return response_text.split("\n")
 
-    def process_document(self) -> None:
+    def process_document(self, midtitles: bool = False) -> None:
         print("Beginning document processing.")
         # Start counting time of method execution
         time_start = time.time()
         for chunk in self.document_chunks:
             print("Processing chunk beginning with:", chunk[:10])
-            chunk = "\n\n" + self.proofread(chunk)
+            if midtitles:
+                subtitle = "\n\n" + self.create_heading(chunk) + "\n\n"
+                chunk = subtitle + self.proofread(chunk)
+            else:
+                chunk = self.proofread(chunk)
             self.output_text += chunk
             print("Time elapsed:", time.time() - time_start)
             self.summary += self.summarize(chunk)
@@ -282,6 +311,33 @@ class Proofreader:
         }
 
 
+class DocumentStyler:
+    def __init__(self) -> None:
+        pass
+
+    def set_style(self, document: Document) -> None:
+        normal_style = document.styles["Normal"]
+        font = normal_style.font
+        font.name = "Calibri"
+        font.size = Pt(11)
+        paragraph_format = normal_style.paragraph_format
+        paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph_format.line_spacing = 1.0
+        paragraph_format.space_before = Pt(0)
+        paragraph_format.space_after = Pt(6)
+
+        title_style = document.styles.add_style("Custom Heading", WD_STYLE_TYPE.PARAGRAPH)
+        font = title_style.font
+        font.name = "Calibri"
+        font.size = Pt(11)
+        font.bold = True
+        paragraph_format = title_style.paragraph_format
+        paragraph_format.space_before = Pt(6)
+        paragraph_format.space_after = Pt(6)
+
+        return document
+
+
 class DocumentWriter:
     """
     Writes a list of texts to a docx file.
@@ -293,39 +349,47 @@ class DocumentWriter:
 
     def write_document(self, output: dict) -> None:
         self.document = Document()
+        styler = DocumentStyler()
+        styler.set_style(self.document)
 
         # Add titles section
-        self.document.add_heading('TYTUŁY', level=1)
+        self.document.add_paragraph("Tytuły", style="Custom Heading")
         for title in output["titles"]:
-            title = title.replace('"', '')
+            title = title.replace('"', "")
             self.document.add_paragraph(title)
 
+        self.document.add_paragraph("\n\n")
+
         # Add leads section
-        self.document.add_heading('LEADY', level=1)
+        self.document.add_paragraph("Leady", style="Custom Heading")
         for lead in output["leads"]:
-            lead = lead.replace('"', '')
+            lead = lead.replace('"', "")
             self.document.add_paragraph(lead)
 
-        # Add quotes section
-        self.document.add_heading('CYTATY', level=1)
-        for quote in output["quotes"]:
-            quote = quote.replace('"', '')
-            self.document.add_paragraph(quote)
+        self.document.add_paragraph("\n\n")
 
         # Add tags section
-        self.document.add_heading('TAGI Z LISTY', level=1)
+        self.document.add_paragraph("Tagi", style="Custom Heading")
         # TODO: Temporary cleaning data solution
-        list_tags = (", ".join(output["tags_from_list"]).replace(',, ', ', '))
-        list_tags = "Tagi: " + list_tags.replace(', , ', ', ')
+        list_tags = ", ".join(output["tags_from_list"]).replace(",, ", ", ")
+        list_tags = "Tagi: " + list_tags.replace(", , ", ", ")
         self.document.add_paragraph(list_tags)
-
-        self.document.add_heading('TAGI', level=1)
-        tags = (", ".join(output["tags"]).replace(',, ', ', '))
-        tags = "# " + tags.replace(', , ', ', ')
+        tags = ", ".join(output["tags"]).replace(",, ", ", ")
+        tags = "# " + tags.replace(", , ", ", ")
         self.document.add_paragraph(tags)
 
+        self.document.add_paragraph("\n\n")
+
+        # Add quotes section
+        self.document.add_paragraph("Cytaty", style="Custom Heading")
+        for quote in output["quotes"]:
+            quote = quote.replace('"', "")
+            self.document.add_paragraph(quote)
+
+        self.document.add_paragraph("\n\n")
+
         # Add text section
-        self.document.add_heading('POPRAWIONY TEKST', level=1)
+        self.document.add_paragraph("Poprawiony tekst", style="Custom Heading")
         self.document.add_paragraph(output["output_text"])
 
         self.document.save(self.file_path)
